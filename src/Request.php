@@ -6,24 +6,91 @@ namespace FcPhp\Request
 
 	class Request implements IRequest
 	{
+		/**
+		 * @var array $server Args of server web/console
+		 */
 		private $server = [];
-		private $http = [];
-		private $console = [];
 
-		public function __construct(array $server/*, IRoute $route, ICommand $command*/)
+		/**
+		 * @var array $http Args of http request
+		 */
+		private $http = [];
+		
+		/**
+		 * @var array $console Args of console request
+		 */
+		private $console = [];
+		
+		/**
+		 * Method to construct instance
+		 *
+		 * @param array $server Args of server web/console
+		 * @return void
+		 */
+		public function __construct(array $server)
 		{
 			$this->server = $server;
-			// $this->route = $route;
-			// $this->command = $command;
 			if(isset($this->server['REQUEST_METHOD'])) {
 				$this->http();
 			}else{
 				$this->console();
 			}
 		}
-
-		private function http()
+		
+		/**
+		 * Method to return information
+		 *
+		 * @param string $key Key to find
+		 * @return array|string
+		 */
+		public function get(string $key = null)
 		{
+			if($this->isConsole()) {
+				return $this->getAttribute($this->console, $key);
+			}
+			return $this->getAttribute($this->http, $key);
+		}
+		
+		/**
+		 * Method to verify if call is console
+		 *
+		 * @return bool
+		 */
+		public function isConsole() :bool
+		{
+			return count($this->console) > 0;
+		}
+		
+		/**
+		 * Method to return attribute
+		 *
+		 * @param array $attribute List of attributes
+		 * @param string $key Key to find
+		 * @return array|string
+		 */
+		private function getAttribute(array $attribute, string $key = null)
+		{
+			if(empty($key)) {
+				return $attribute;
+			}
+			if(isset($attribute[$key])) {
+				return $attribute[$key];
+			}
+			return null;
+		}
+		
+		/**
+		 * Method to mount args of http request
+		 *
+		 * @return void
+		 */
+		private function http() :void
+		{
+			$query = [];
+			$queryString = $this->getContent('QUERY_STRING');
+			if(!empty($queryString)) {
+				parse_str($queryString, $query);
+			}
 			$this->http = [
 				'path' => $this->getContent('DOCUMENT_ROOT'),
 				'script-name' => $this->getContent('SCRIPT_NAME'),
@@ -35,22 +102,40 @@ namespace FcPhp\Request
 				'port' => $this->getContent('SERVER_PORT'),
 				'uri' => $this->getContent('REQUEST_URI'),
 				'user-agent' => $this->getContent('HTTP_USER_AGENT'),
-				'query' => $this->getContent('QUERY_STRING'),
+				'query' => $query,
 				'content-type' => $this->getContent('HTTP_CONTENT_TYPE'),
 			];
-			$this->route();
+			$this->http['headers'] = $this->getContentList('HTTP_');
 		}
-
-		private function route()
+		
+		/**
+		 * Method to return list of "key" find in server
+		 *
+		 * @param string $key Key to find
+		 * @return array
+		 */
+		private function getContentList(string $key) :array
 		{
-			// security http
-			// $this->httpSecurity->run($this->http);
-
-			// route
-			// $this->route->run($this->http);
+			$list = [];
+			$length = strlen($key);
+			foreach($this->server as $index => $value) {
+				if(substr($index, 0, $length) == $key) {
+					$indexes = explode('_', $index);
+					$indexes = array_map(function($content) {
+						return strtolower($content);
+					}, $indexes);
+					$list[implode('-', $indexes)] = $value;
+				}
+			}
+			return $list;
 		}
-
-		private function console()
+		
+		/**
+		 * Method to mount args of console request
+		 *
+		 * @return void
+		 */
+		private function console() :void
 		{
 			$this->console = [
 				'path' => $this->getContent('PWD'),
@@ -62,18 +147,14 @@ namespace FcPhp\Request
 				'username' => $this->getContent('USERNAME'),
 				'params' => $this->getContent('argv'),
 			];
-			$this->command();
 		}
-
-		private function command()
-		{
-			// security console
-			// $this->consoleSecurity->run($this->console);
-
-			// command
-			// $this->command->run($this->console);
-		}
-
+		
+		/**
+		 * Method to return content of attribute server
+		 *
+		 * @param string $key Key to find
+		 * @return string|null
+		 */
 		private function getContent(string $key)
 		{
 			if(isset($this->server[$key])) {
